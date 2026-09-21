@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>馬可夫模型分析</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 2em;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 1em;
+        }
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 1em;
+        }
+        button {
+            padding: 10px;
+            font-size: 14px;
+            min-width: 120px;
+            cursor: pointer;
+        }
+        #progress-bar {
+            width: 50%;
+            height: 8px;
+            background-color: #ccc;
+            margin: 0 auto 1em auto;
+            position: relative;
+            display: none;
+        }
+        #progress-bar::after {
+            content: "";
+            position: absolute;
+            height: 100%;
+            width: 0%;
+            background-color: #3c8dbc;
+            animation: loading 30s linear infinite;
+        }
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 50%; }
+            100% { width: 100%; }
+        }
+        pre {
+            background: #eee;
+            padding: 1em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>DNA 馬可夫模型分析</h1>
+
+    <div class="button-group">
+        <button onclick="runModel('zero')">Zero-Order</button>
+        <button onclick="runModel('first')">First-Order</button>
+        <button onclick="runModel('second')">Second-Order</button>
+        <button onclick="runModel('hmm')">HMM</button>
+        <button onclick="runAllModels()">比較所有模型</button>
+    </div>
+
+    <div id="progress-bar"></div>
+
+    <h3>模型輸出結果：</h3>
+    <pre id="output">尚未執行任何模型</pre>
+
+    <script>
+    async function runModel(model) {
+        const output = document.getElementById("output");
+        const progress = document.getElementById("progress-bar");
+
+        output.textContent = "⌛ 模型執行中...";
+        progress.style.display = "block";
+
+        try {
+            const response = await fetch('/run_model', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: model })
+            });
+            const result = await response.json();
+            output.textContent = result.output || result.error;
+        } catch (err) {
+            output.textContent = "❌ 發生錯誤：" + err;
+        } finally {
+            progress.style.display = "none";
+        }
+    }
+
+    async function runAllModels() {
+        const output = document.getElementById("output");
+        const progress = document.getElementById("progress-bar");
+        progress.style.display = "block";
+        output.textContent = "⌛ 執行所有模型中...\n";
+
+        const models = ['zero', 'first', 'second', 'hmm'];
+        const names = {
+            'zero': 'Zero order Markov',
+            'first': 'First order Markov',
+            'second': 'Second order Markov',
+            'hmm': 'Hidden Markov Model'
+        };
+
+        let results = [];
+
+        for (let model of models) {
+            try {
+                output.textContent += `→ 執行 ${names[model]}...\n`;
+                const response = await fetch('/run_model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: model })
+                });
+                const result = await response.json();
+                const rawOutput = result.output || result.error;
+
+                const match = rawOutput.match(/Probability.*?:\s*[\deE\.\+\-]+/);
+                if (match) {
+                    results.push(`${names[model]}: ${match[0].split(':')[1].trim()}`);
+                } else {
+                    results.push(`${names[model]}: ❌ 無法解析結果`);
+                }
+            } catch (err) {
+                results.push(`${names[model]}: ❌ 執行錯誤`);
+            }
+        }
+
+        output.textContent = "📊 比較結果：\n" + results.join('\n');
+        progress.style.display = "none";
+    }
+    </script>
+
+</body>
+</html>
